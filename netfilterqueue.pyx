@@ -216,7 +216,7 @@ cdef class Packet:
 
         self.verdict(NF_DROP)
 
-    cpdef forward(self, u_int16_t queue_num)
+    cpdef forward(self, u_int16_t queue_num):
         '''Send the packet to a different queue.'''
 
         cdef u_int_32_t forward_to_queue
