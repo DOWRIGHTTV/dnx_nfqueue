@@ -41,12 +41,8 @@ DEF SockRcvSize = DEFAULT_MAX_QUEUELEN * SockCopySize / 2
 cdef int global_callback(nfq_q_handle * qh, nfgenmsg * nfmsg, nfq_data * nfa, void * data) with gil:
     '''Create a Packet and pass it to appropriate callback.'''
 
-    cdef
-    NetfilterQueue
-    nfqueue = < NetfilterQueue > data
-    cdef
-    object
-    user_callback = < object > nfqueue.user_callback
+    cdef NetfilterQueue nfqueue = < NetfilterQueue > data
+    cdef object user_callback = < object > nfqueue.user_callback
 
     packet = Packet()
     packet.set_nfq_data(qh, nfa)
@@ -72,6 +68,7 @@ cdef class Packet:
 
     cdef set_nfq_data(self, nfq_q_handle * qh, nfq_data * nfa):
         '''Assign a packet from NFQ to this object. Parse the header and load local values.'''
+
         self._qh = qh
         self._nfa = nfa
         self._hdr = nfq_get_msg_packet_hdr(nfa)
@@ -263,6 +260,7 @@ cdef class NetfilterQueue:
         '''Create and bind to a new queue.'''
 
         cdef unsigned int newsiz
+
         self.user_callback = user_callback
         self.qh = nfq_create_queue(self.h, queue_num, < nfq_callback * > global_callback, < void * > self)
         if self.qh == NULL:
