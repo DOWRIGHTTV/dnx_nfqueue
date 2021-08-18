@@ -112,7 +112,7 @@ cdef class Packet:
 
         self._verdict_is_set = True
 
-    cpdef get_inint(self, bool name = False):
+    cpdef get_inint(self, bool name=False):
         '''Returns index of inbound interface of packet. If the packet sourced from localhost or the input
         interface is not known, 0 will be returned.
         
@@ -148,12 +148,12 @@ cdef class Packet:
 
         return out_interface
 
-    cpdef get_initial_mark(self):
+    def get_initial_mark(self):
         '''Return mark set at first receipt of packet. This will not change even if the mark is updated.'''
 
         return self.mark
 
-    cpdef get_modified_mark(self):
+    def get_modified_mark(self):
         '''Return current mark of packet set within a queue. Calling packet.update_mark(new_mark) will change this
         value. If update_mark() has not be done, 0 will be returned.'''
 

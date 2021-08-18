@@ -201,13 +201,16 @@ cdef class Packet:
 
     cdef set_nfq_data(self, nfq_q_handle *qh, nfq_data *nfa)
     cdef void verdict(self, u_int8_t verdict)
+    cpdef get_inint(self, bool name)
+    cpdef get_outint(self, bool name)
+    cpdef update_mark(self, u_int32_t mark):
     cpdef Py_ssize_t get_payload_len(self)
     cpdef double get_timestamp(self)
     cpdef set_payload(self, bytes payload)
-    cpdef set_mark(self, u_int32_t mark)
     cpdef get_mark(self)
     cpdef accept(self)
     cpdef drop(self)
+    cpdef forward(self, u_int16_t queue_num)
     cpdef repeat(self)
 
 cdef class NetfilterQueue:
