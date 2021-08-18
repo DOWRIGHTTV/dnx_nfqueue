@@ -212,7 +212,7 @@ cdef class Packet:
         self.verdict(NF_ACCEPT)
 
     cpdef drop(self):
-    '''Drop the packet.'''
+        '''Drop the packet.'''
 
         self.verdict(NF_DROP)
 
