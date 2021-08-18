@@ -15,8 +15,7 @@ Expanded features + general refactor to be used with DNXFIREWALL.
 
 import socket
 
-cimport
-cpython.version
+# cimport cpython.version
 
 VERSION = (0, 8, 1)
 
