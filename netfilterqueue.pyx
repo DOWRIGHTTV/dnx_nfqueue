@@ -142,7 +142,7 @@ cdef class Packet:
 
         out_interface = nfq_get_outdev(self._nfa)
         if name:
-            out_interface_name = socket.if_nameindex(in_interface)
+            out_interface_name = socket.if_nameindex(out_interface)
 
             return out_interface_name
 
