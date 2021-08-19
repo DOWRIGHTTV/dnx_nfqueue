@@ -173,10 +173,9 @@ cdef class Packet:
     cdef nfq_data *_nfa
     cdef nfqnl_msg_packet_hdr *_hdr
     cdef nfqnl_msg_packet_hw *_hw
-    cdef bint _verdict_is_set # True if verdict has been issued,
-        # false otherwise
-    cdef bint _mark_is_set # True if a mark has been given, false otherwise
-    cdef u_int32_t _given_mark # Mark given to packet
+    cdef bint _verdict_is_set # True if verdict has been issued, otherwise false
+    #cdef bint _mark_is_set # True if a mark has been given, otherwise false
+    cdef u_int32_t _modified_mark # Mark given to packet
     cdef bytes _given_payload # New payload of packet, or null
 
     # From NFQ packet header:
@@ -191,7 +190,7 @@ cdef class Packet:
     cdef timeval timestamp
     cdef u_int8_t hw_addr[8]
 
-    # TODO: implement these
+    # TODO: implement these | likely not using in htis manner.
     #cdef u_int8_t hw_addr[8] # A eui64-formatted address?
     #cdef readonly u_int32_t nfmark
     #cdef readonly u_int32_t indev
@@ -201,13 +200,13 @@ cdef class Packet:
 
     cdef set_nfq_data(self, nfq_q_handle *qh, nfq_data *nfa)
     cdef void verdict(self, u_int8_t verdict)
-    cpdef get_inint(self, bint name)
-    cpdef get_outint(self, bint name)
+    cpdef get_inint(self, bint name=*)
+    cpdef get_outint(self, bint name=*)
     cpdef update_mark(self, u_int32_t mark)
     cpdef Py_ssize_t get_payload_len(self)
     cpdef double get_timestamp(self)
     cpdef set_payload(self, bytes payload)
-    cpdef get_mark(self)
+    #cpdef get_mark(self)
     cpdef accept(self)
     cpdef drop(self)
     cpdef forward(self, u_int16_t queue_num)

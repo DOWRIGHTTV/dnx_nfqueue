@@ -1,5 +1,4 @@
 include *.txt
 include *.rst
-include *.c
 include *.pyx
 include *.pxd

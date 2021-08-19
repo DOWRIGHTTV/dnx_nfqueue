@@ -5,7 +5,7 @@ Bind to a Linux netfilter queue. Send packets to a user-specified callback
 function.
 
 Copyright: (c) 2011, Kerkhoff Technologies Inc.
-License: MIT; see LICENSE.txt
+License: MIT; see SOURCE-LICENSE.txt
 '''
 
 '''
@@ -15,28 +15,26 @@ Expanded features + general refactor to be used with DNXFIREWALL.
 
 import socket
 
-# cimport cpython.version
-
-VERSION = (0, 8, 1)
-
 # Constants for module users
-COPY_NONE = 0
-COPY_META = 1
-COPY_PACKET = 2
+cdef int COPY_NONE = 0
+cdef int COPY_META = 1
+cdef int COPY_PACKET = 2
 
 # Packet copying defaults
-DEF DEFAULT_MAX_QUEUELEN = 1024
-DEF MaxPacketSize = 0xFFFF
-DEF BufferSize = 4096
-DEF MetadataSize = 80
-DEF MaxCopySize = BufferSize - MetadataSize
+cdef u_int8_t DEFAULT_MAX_QUEUELEN = 1024
+cdef u_int16_t MaxPacketSize = 0xFFFF
+cdef u_int16_t BufferSize = 4096
+cdef u_int8_t MetadataSize = 80
+
+cdef u_int16_t MaxCopySize = BufferSize - MetadataSize
 
 # Experimentally determined overhead
-DEF SockOverhead = 760 + 20
-DEF SockCopySize = MaxCopySize + SockOverhead
+cdef u_int8_t SockOverhead = 760 + 20
+
+cdef u_int16_t SockCopySize = MaxCopySize + SockOverhead
 
 # Socket queue should hold max number of packets of copysize bytes
-DEF SockRcvSize = DEFAULT_MAX_QUEUELEN * SockCopySize / 2
+cdef u_int32_t SockRcvSize = DEFAULT_MAX_QUEUELEN * SockCopySize / 2
 
 cdef int global_callback(nfq_q_handle * qh, nfgenmsg * nfmsg, nfq_data * nfa, void * data) with gil:
     '''Create a Packet and pass it to appropriate callback.'''
@@ -219,7 +217,7 @@ cdef class Packet:
     cpdef forward(self, u_int16_t queue_num):
         '''Send the packet to a different queue.'''
 
-        cdef u_int_32_t forward_to_queue
+        cdef u_int32_t forward_to_queue
 
         forward_to_queue = queue_num << 16 | NF_QUEUE
 
