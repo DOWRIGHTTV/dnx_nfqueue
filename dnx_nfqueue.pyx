@@ -28,7 +28,7 @@ cdef u_int16_t MaxCopySize = 4096 - 80
 
 # Socket queue should hold max number of packets of copy size bytes
 # formula: DEF_MAX_QUEUELEN * (MaxCopySize+SockOverhead) / 2
-cdef u_int32_t SockRcvSize = 1024 * 4796 / 2
+cdef u_int32_t SockRcvSize = 1024 * 4796 // 2
 
 cdef int global_callback(nfq_q_handle * qh, nfgenmsg * nfmsg, nfq_data * nfa, void * data) with gil:
     '''Create a Packet and pass it to appropriate callback.'''
