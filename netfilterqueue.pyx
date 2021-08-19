@@ -112,7 +112,7 @@ cdef class Packet:
 
         self._verdict_is_set = True
 
-    cpdef get_inint(self, bool name=False):
+    cpdef get_inint(self, bint name=False):
         '''Returns index of inbound interface of packet. If the packet sourced from localhost or the input
         interface is not known, 0 will be returned.
         
@@ -131,7 +131,7 @@ cdef class Packet:
 
     # NOTE: keeping these funtions separate instead of making an argument option to adjust which interface to return.
     # this will keep it explicit for which interface is returning to minimize chance of confusion/bugs.
-    cpdef get_outint(self, bool name=False):
+    cpdef get_outint(self, bint name=False):
         '''Returns index of outbound interface of packet. If the packet is destined for localhost or the output
         interface is not yet known, 0 will be returned.
         
@@ -292,7 +292,7 @@ cdef class NetfilterQueue:
 
         return nfq_fd(self.h)
 
-    def run(self, block=True):
+    def run(self, bint block=True):
         '''Accept packets using recv.'''
 
         cdef int fd = self.get_fd()
