@@ -174,7 +174,6 @@ cdef class Packet:
     cdef nfqnl_msg_packet_hdr *_hdr
     cdef nfqnl_msg_packet_hw *_hw
     cdef bint _verdict_is_set # True if verdict has been issued, otherwise false
-    #cdef bint _mark_is_set # True if a mark has been given, otherwise false
     cdef u_int32_t _modified_mark # Mark given to packet
     cdef bytes _given_payload # New payload of packet, or null
 
@@ -186,11 +185,11 @@ cdef class Packet:
 
     # Packet details:
     cdef Py_ssize_t payload_len
-    cdef readonly char *payload
+    cdef readonly unsigned char *payload
     cdef timeval timestamp
     cdef u_int8_t hw_addr[8]
 
-    # TODO: implement these | likely not using in htis manner.
+    # TODO: implement these | likely not using in this manner.
     #cdef u_int8_t hw_addr[8] # A eui64-formatted address?
     #cdef readonly u_int32_t nfmark
     #cdef readonly u_int32_t indev

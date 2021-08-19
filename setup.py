@@ -2,7 +2,12 @@
 
 from setuptools import setup
 from Cython.Build import cythonize
+from Cython.Distutils import build_ext
+
+cmd = {'build_ext': build_ext}
+ext = Extension(
+    'dnx_nfqueue', sources=['netfilterqueue.pyx'], libraries=['netfilter_queue'])
 
 setup(
-    ext_modules=cythonize('dnx_nfqueue.pyx', language_level='3')
+    name='DNX-NFQUEUE', cmdclass=cmd, ext_modules=cythonize(ext, language_level='3')
 )

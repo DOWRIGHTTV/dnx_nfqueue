@@ -48,7 +48,6 @@ cdef class Packet:
 
     def __cinit__(self):
         self._verdict_is_set = False
-        # self._mark_is_set = False
         self._modified_mark = 0
         self._given_payload = None
 
@@ -69,12 +68,12 @@ cdef class Packet:
         self.hw_protocol = ntohs(self._hdr.hw_protocol)
         self.hook = self._hdr.hook
 
-        self.payload_len = nfq_get_payload(self._nfa, & self.payload)
+        self.payload_len = nfq_get_payload(self._nfa, &self.payload)
         if self.payload_len < 0:
             raise OSError("Failed to get payload of packet.")
 
         # timestamp gets assigned via pointer/struct -> time_val: (t_sec, t_usec).
-        nfq_get_timestamp(self._nfa, & self.timestamp)
+        nfq_get_timestamp(self._nfa, &self.timestamp)
 
         self.mark = nfq_get_nfmark(nfa)
 
@@ -92,7 +91,7 @@ cdef class Packet:
             modified_payload_len = len(self._given_payload)
             modified_payload = self._given_payload
 
-        if self._mark_is_set:
+        if self._modified_mark:
             nfq_set_verdict2(
                 self._qh, self.id, verdict, self._given_mark, modified_payload_len, modified_payload
             )
