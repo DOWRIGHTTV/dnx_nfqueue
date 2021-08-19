@@ -20,21 +20,15 @@ cdef int COPY_NONE = 0
 cdef int COPY_META = 1
 cdef int COPY_PACKET = 2
 
-# Packet copying defaults
-cdef u_int8_t DEFAULT_MAX_QUEUELEN = 1024
+cdef u_int16_t DEFAULT_MAX_QUEUELEN = 1024
 cdef u_int16_t MaxPacketSize = 0xFFFF
-cdef u_int16_t BufferSize = 4096
-cdef u_int8_t MetadataSize = 80
 
-cdef u_int16_t MaxCopySize = BufferSize - MetadataSize
+# buffer size - metadata size
+cdef u_int16_t MaxCopySize = 4096 - 80
 
-# Experimentally determined overhead
-cdef u_int8_t SockOverhead = 760 + 20
-
-cdef u_int16_t SockCopySize = MaxCopySize + SockOverhead
-
-# Socket queue should hold max number of packets of copysize bytes
-cdef u_int32_t SockRcvSize = DEFAULT_MAX_QUEUELEN * SockCopySize / 2
+# Socket queue should hold max number of packets of copy size bytes
+# formula: DEF_MAX_QUEUELEN * (MaxCopySize+SockOverhead) / 2
+cdef u_int32_t SockRcvSize = 1024 * 4796 / 2
 
 cdef int global_callback(nfq_q_handle * qh, nfgenmsg * nfmsg, nfq_data * nfa, void * data) with gil:
     '''Create a Packet and pass it to appropriate callback.'''
@@ -253,8 +247,8 @@ cdef class NetfilterQueue:
         # processes using this libnetfilter_queue on this protocol family!
         nfq_close(self.h)
 
-    def bind(self, int queue_num, object user_callback, u_int32_t max_len=DEFAULT_MAX_QUEUELEN,
-            u_int8_t mode=NFQNL_COPY_PACKET, u_int32_t range=MaxPacketSize, u_int32_t sock_len=SockRcvSize):
+    def bind(self, int queue_num, object user_callback, u_int16_t max_len=DEFAULT_MAX_QUEUELEN,
+            u_int8_t mode=NFQNL_COPY_PACKET, u_int16_t range=MaxPacketSize, u_int32_t sock_len=SockRcvSize):
         '''Create and bind to a new queue.'''
 
         cdef unsigned int newsiz
@@ -294,15 +288,17 @@ cdef class NetfilterQueue:
         '''Accept packets using recv.'''
 
         cdef int fd = self.get_fd()
-        cdef char buf[BufferSize]
+        cdef char buf[4096]
         cdef int rv
         cdef int recv_flags
 
-        recv_flags = 0 if block else MSG_DONTWAIT
+        recv_flags = 0
 
         while True:
             with nogil:
                 rv = recv(fd, buf, sizeof(buf), recv_flags)
+
+            print(rv)
 
             if (rv >= 0):
                 nfq_handle_packet(self.h, buf, rv)
@@ -316,7 +312,7 @@ cdef class NetfilterQueue:
 
         while True:
             try:
-                buf = s.recv(BufferSize)
+                buf = s.recv(4096)
             except socket.error as e:
                 err = e.args[0]
                 if err == ENOBUFS:
