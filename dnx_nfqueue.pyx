@@ -77,7 +77,7 @@ cdef class Packet:
         # timestamp gets assigned via pointer/struct -> time_val: (t_sec, t_usec).
         nfq_get_timestamp(self._nfa, &self.timestamp)
 
-        cdef u_int_32_t self._mark = nfq_get_nfmark(nfa)
+        cdef u_int32_t mark = nfq_get_nfmark(nfa)
 
     cdef void verdict(self, u_int32_t verdict):
         '''Call appropriate set_verdict... function on packet.'''
