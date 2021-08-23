@@ -48,11 +48,11 @@ cdef class Packet:
 
     def __cinit__(self):
         self._verdict_is_set = False
-        self._modified_mark = 0
+        self._mark = 0
         self._given_payload = None
 
     def __str__(self):
-        cdef iphdr * hdr = < iphdr * > self.payload
+        cdef ip_header * hdr = < ip_header * > self.payload
         protocol = PROTOCOLS.get(hdr.protocol, "Unknown protocol")
 
         return "%s packet, %s bytes" % (protocol, self.payload_len)
@@ -72,12 +72,14 @@ cdef class Packet:
         if self.payload_len < 0:
             raise OSError("Failed to get payload of packet.")
 
+        self._payload
+
         # timestamp gets assigned via pointer/struct -> time_val: (t_sec, t_usec).
         nfq_get_timestamp(self._nfa, &self.timestamp)
 
-        self.mark = nfq_get_nfmark(nfa)
+        cdef u_int_32_t self._mark = nfq_get_nfmark(nfa)
 
-    cdef void verdict(self, u_int8_t verdict):
+    cdef void verdict(self, u_int32_t verdict):
         '''Call appropriate set_verdict... function on packet.'''
 
         if self._verdict_is_set:
@@ -93,7 +95,7 @@ cdef class Packet:
 
         if self._modified_mark:
             nfq_set_verdict2(
-                self._qh, self.id, verdict, self._given_mark, modified_payload_len, modified_payload
+                self._qh, self.id, verdict, self._modified_mark, modified_payload_len, modified_payload
             )
 
         else:
@@ -107,18 +109,21 @@ cdef class Packet:
         '''Returns index of inbound interface of packet. If the packet sourced from localhost or the input
         interface is not known, 0 will be returned.
         
-        if name=True, socket.if_nameindex() will be returned.
+        if name=True, socket.if_indextoname() will be returned.
         '''
 
         cdef object in_interface_name
 
         in_interface = nfq_get_indev(self._nfa)
-        if name:
-            in_interface_name = socket.if_nameindex(in_interface)
+        if not name:
+            return in_interface
 
-            return in_interface_name
+        try:
+            in_interface_name = socket.if_indextoname(in_interface)
+        except OSError:
+            in_interface_name = 'unknown'
 
-        return in_interface
+        return in_interface_name
 
     # NOTE: keeping these funtions separate instead of making an argument option to adjust which interface to return.
     # this will keep it explicit for which interface is returning to minimize chance of confusion/bugs.
@@ -126,29 +131,26 @@ cdef class Packet:
         '''Returns index of outbound interface of packet. If the packet is destined for localhost or the output
         interface is not yet known, 0 will be returned.
         
-        if name=True, socket.if_nameindex() will be returned.
+        if name=True, socket.if_indextoname() will be returned.
         '''
 
         cdef object out_interface_name
 
         out_interface = nfq_get_outdev(self._nfa)
-        if name:
-            out_interface_name = socket.if_nameindex(out_interface)
+        if not name:
+            return out_interface
 
-            return out_interface_name
+        try:
+            out_interface_name = socket.if_indextoname(out_interface)
+        except OSError:
+            out_interface_name = 'unknown'
 
-        return out_interface
+        return out_interface_name
 
-    def get_initial_mark(self):
-        '''Return mark set at first receipt of packet. This will not change even if the mark is updated.'''
+    def get_mark(self):
+        '''Return mark set at first receipt of packet.'''
 
-        return self.mark
-
-    def get_modified_mark(self):
-        '''Return current mark of packet set within a queue. Calling packet.update_mark(new_mark) will change this
-        value. If update_mark() has not be done, 0 will be returned.'''
-
-        return self._modified_mark
+        return self._mark
 
     cpdef update_mark(self, u_int32_t mark):
         '''Modifies the running mark of the packet. This will not override the initial mark received, but any
