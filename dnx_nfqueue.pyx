@@ -28,6 +28,7 @@ cdef u_int32_t SockRcvSize = 1024 * 4796 // 2
 cdef object user_callback
 def set_user_callback(ref):
     '''Set required reference which will be called after packet data is parsed into C structs.'''
+
     global user_callback
 
     user_callback = ref
@@ -48,27 +49,26 @@ cdef int nf_callback(nfq_q_handle *qh, nfgenmsg *nfmsg, nfq_data *nfa, void *dat
 cdef class CPacket:
 
     def __cinit__(self):
-        self._verdict_is_set = False
+        self._verdict = False
         self._mark = 0
 
     cdef u_int32_t parse(self, nfq_q_handle *qh, nfq_data *nfa) nogil:
+
+        self._timestamp = time(NULL)
+        self._mark = nfq_get_nfmark(nfa)
+        self._data_len = nfq_get_payload(self._nfa, & self.data)
 
         self._qh = qh
         self._nfa = nfa
 
         self._hdr = nfq_get_msg_packet_hdr(nfa)
-        self.id = ntohl(self._hdr.packet_id)
-
-        self.data_len = nfq_get_payload(self._nfa, &self.data)
-
-        self.timestamp = time(NULL)
-        self._mark = nfq_get_nfmark(nfa)
+        self._id = ntohl(self._hdr.packet_id)
 
         # splitting packet by tcp/ip layers
         self._parse()
 
         # returning mark for more direct access
-        return self._mark
+        return mark
 
     cdef void _parse(self) nogil:
 
@@ -103,20 +103,20 @@ cdef class CPacket:
     cdef void verdict(self, u_int32_t verdict):
         '''Call appropriate set_verdict function on packet.'''
 
-        if self._verdict_is_set:
+        if self._verdict:
             raise RuntimeWarning('Verdict already given for this packet.')
 
         if self._mark:
             nfq_set_verdict2(
-                self._qh, self.id, verdict, self._mark, self.data_len, self.data
+                self._qh, self._id, verdict, self._mark, self.data_len, self.data
             )
 
         else:
             nfq_set_verdict(
-                self._qh, self.id, verdict, self.data_len, self.data
+                self._qh, self._id, verdict, self.data_len, self.data
             )
 
-        self._verdict_is_set = True
+        self._verdict = True
 
     cpdef update_mark(self, u_int32_t mark):
         '''Modifies the running mark of the packet.'''
@@ -171,7 +171,7 @@ cdef class CPacket:
             )
         '''
 
-        cdef (u_int32_t, u_int32_t, u_int8_t[6], double) hw_info
+        cdef (u_int32_t, u_int32_t, char*, double) hw_info
 
         cdef u_int32_t in_interface = nfq_get_indev(self._nfa)
         cdef u_int32_t out_interface = nfq_get_outdev(self._nfa)
@@ -182,16 +182,13 @@ cdef class CPacket:
             # NOTE: forcing error handling will ensure it is dealt with [properly].
             raise OSError('MAC address not available in OUTPUT and PREROUTING chains')
 
-        # NOTE: this is 8 bytes in source and lib_netfilter_queue, but unsure why since mac addresses are only 6
-        # bytes. the last two bytes may be padding, but either way removing here so it will not need to be done
-        # on the python side.
-        cdef u_int8_t[6] hw_addr = self._hw.hw_addr
-        # mac_addr = PyBytes_FromStringAndSize(<char*>hw_addr, 6)
+        # casting to bytestring to be compatible with ctuple.
+        cdef char* mac_addr = <char*>self._hw.hw_addr
 
         hw_info = (
             in_interface,
             out_interface,
-            hw_addr,
+            mac_addr,
             self.timestamp,
         )
 
