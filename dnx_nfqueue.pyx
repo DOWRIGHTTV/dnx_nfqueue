@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 
-import socket
+'''
+This is a derivative work based on python-netfilterqueue.
 
-from libc.stdio cimport printf
+see: SOURCE-LICENSE.txt (MIT), https://github.com/kti/python-netfilterqueue
+
+As a derived work, see: DERIVATIVE-LICENSE.txt (AGPL3)
+'''
+
+import socket
 
 # Constants for module users
 cdef int COPY_NONE = 0
@@ -45,7 +51,6 @@ cdef class CPacket:
         self._verdict_is_set = False
         self._mark = 0
 
-    # NOTE: this will be callback target for nfqueue
     cdef u_int32_t parse(self, nfq_q_handle *qh, nfq_data *nfa) nogil:
 
         self._qh = qh
@@ -53,34 +58,24 @@ cdef class CPacket:
 
         self._hdr = nfq_get_msg_packet_hdr(nfa)
         self.id = ntohl(self._hdr.packet_id)
-        # NOTE: these are not needed at this moment.
-        # self.hw_protocol = ntohs(hdr.hw_protocol)
-        # self.hook = hdr.hook
 
         self.data_len = nfq_get_payload(self._nfa, &self.data)
-        # TODO: figure this out. cant use no gil if its here.
-        # if self.payload_len < 0:
-        #     raise OSError("Failed to get payload of packet.")
 
-        # timestamp gets assigned via pointer/struct -> time_val: (t_sec, t_usec).
-        nfq_get_timestamp(self._nfa, &self.timestamp)
-
+        self.timestamp = time(NULL)
         self._mark = nfq_get_nfmark(nfa)
 
         # splitting packet by tcp/ip layers
         self._parse()
 
+        # returning mark for more direct access
         return self._mark
-
-        # if (self.continue_condition):
-        #     self._before_exit()
 
     cdef void _parse(self) nogil:
 
         self.ip_header = <iphdr*>self.data
 
         cdef u_int8_t iphdr_len
-        cdef u_int8_t protohdr_len
+        cdef u_int8_t protohdr_len = 0
 
         iphdr_len = (self.ip_header.ver_ihl & 15) * 4
 
@@ -108,7 +103,6 @@ cdef class CPacket:
     cdef void verdict(self, u_int32_t verdict):
         '''Call appropriate set_verdict function on packet.'''
 
-        # TODO: figure out what to do about this. maybe just printf instead?
         if self._verdict_is_set:
             raise RuntimeWarning('Verdict already given for this packet.')
 
@@ -123,10 +117,6 @@ cdef class CPacket:
             )
 
         self._verdict_is_set = True
-
-    cdef double get_timestamp(self):
-
-        return self.timestamp.tv_sec + (self.timestamp.tv_usec / 1000000.0)
 
     cpdef update_mark(self, u_int32_t mark):
         '''Modifies the running mark of the packet.'''
@@ -177,38 +167,32 @@ cdef class CPacket:
         '''Return hardware information of the packet.
 
             hw_info = (
-                in_interface, out_interface, mac_addr, self.get_timestamp()
+                in_interface, out_interface, mac_addr, timestamp
             )
         '''
 
-        cdef object mac_addr
-        cdef tuple hw_info
-        cdef int in_interface
-        cdef int out_interface
+        cdef (u_int32_t, u_int32_t, u_int8_t[6], double) hw_info
 
-        in_interface = nfq_get_indev(self._nfa)
-        out_interface = nfq_get_outdev(self._nfa)
+        cdef u_int32_t in_interface = nfq_get_indev(self._nfa)
+        cdef u_int32_t out_interface = nfq_get_outdev(self._nfa)
 
         self._hw = nfq_get_packet_hw(self._nfa)
         if self._hw == NULL:
-            print(f'HW ERROR: {self._hw.hw_addr}')
             # nfq_get_packet_hw doesn't work on OUTPUT and PREROUTING chains
-            # NOTE: making this a quick fail scenario since this would likely cause problems later in the packet
-            # parsing process and forcing error handling will ensure it is dealt with [properly].
+            # NOTE: forcing error handling will ensure it is dealt with [properly].
             raise OSError('MAC address not available in OUTPUT and PREROUTING chains')
-
-        cdef u_int8_t[8] hw_addr = self._hw.hw_addr
 
         # NOTE: this is 8 bytes in source and lib_netfilter_queue, but unsure why since mac addresses are only 6
         # bytes. the last two bytes may be padding, but either way removing here so it will not need to be done
         # on the python side.
-        mac_addr = PyBytes_FromStringAndSize(<char*>hw_addr, 6)
+        cdef u_int8_t[6] hw_addr = self._hw.hw_addr
+        # mac_addr = PyBytes_FromStringAndSize(<char*>hw_addr, 6)
 
         hw_info = (
             in_interface,
             out_interface,
-            mac_addr,
-            self.get_timestamp(),
+            hw_addr,
+            self.timestamp,
         )
 
         return hw_info
@@ -221,7 +205,8 @@ cdef class CPacket:
     def get_ip_header(self):
         '''Return layer3 of packet data as a tuple converted directly from C struct.'''
 
-        cdef tuple ip_header
+        cdef (u_int8_t, u_int8_t, u_int16_t, u_int16_t, u_int16_t,
+                u_int8_t, u_int8_t, u_int16_t, u_int32_t, u_int32_t) ip_header
 
         ip_header = (
             self.ip_header.ver_ihl,
@@ -238,46 +223,51 @@ cdef class CPacket:
 
         return ip_header
 
-    def get_proto_header(self):
-        '''Return layer4 of packet data as a tuple converted directly from C struct.'''
+    def get_tcp_header(self):
+        '''Return layer4 (TCP) of packet data as a tuple converted directly from C struct.'''
 
-        cdef tuple proto_header
+        cdef (u_int16_t, u_int16_t, u_int32_t, u_int32_t,
+                u_int8_t, u_int8_t, u_int16_t, u_int16_t, u_int16_t) tcp_header
 
-        if (self.ip_header.protocol == IPPROTO_TCP):
+        tcp_header = (
+            ntohs(self.tcp_header.th_sport),
+            ntohs(self.tcp_header.th_dport),
+            ntohl(self.tcp_header.th_seq),
+            ntohl(self.tcp_header.th_ack),
+            self.tcp_header.th_off,
+            self.tcp_header.th_flags,
+            ntohs(self.tcp_header.th_win),
+            ntohs(self.tcp_header.th_sum),
+            ntohs(self.tcp_header.th_urp),
+        )
 
-            proto_header = (
-                ntohs(self.tcp_header.th_sport),
-                ntohs(self.tcp_header.th_dport),
-                ntohl(self.tcp_header.th_seq),
-                ntohl(self.tcp_header.th_ack),
+        return tcp_header
 
-                self.tcp_header.th_off,
+    def get_udp_header(self):
+        '''Return layer4 (UDP) of packet data as a tuple converted directly from C struct.'''
 
-                self.tcp_header.th_flags,
-                ntohs(self.tcp_header.th_win),
-                ntohs(self.tcp_header.th_sum),
-                ntohs(self.tcp_header.th_urp),
-            )
+        cdef (u_int16_t, u_int16_t, u_int16_t, u_int16_t) udp_header
 
-        elif (self.ip_header.protocol == IPPROTO_UDP):
+        udp_header = (
+            ntohs(self.udp_header.uh_sport),
+            ntohs(self.udp_header.uh_dport),
+            ntohs(self.udp_header.uh_ulen),
+            ntohs(self.udp_header.uh_sum),
+        )
 
-            proto_header = (
-                ntohs(self.udp_header.uh_sport),
-                ntohs(self.udp_header.uh_dport),
-                ntohs(self.udp_header.uh_ulen),
-                ntohs(self.udp_header.uh_sum),
-            )
+        return udp_header
 
-        elif (self.ip_header.protocol == IPPROTO_ICMP):
+    def get_udp_header(self):
+        '''Return layer4 (ICMP) of packet data as a tuple converted directly from C struct.'''
 
-            proto_header = (
-                self.icmp_header.type,
-            )
+        cdef (u_int8_t, u_int8_t) icmp_header
 
-        else:
-            proto_header = ()
+        icmp_header = (
+            self.icmp_header.type,
+            self.icmp_header.code,
+        )
 
-        return proto_header
+        return icmp_header
 
     def get_payload(self):
         '''Return payload (>layer4) as Python bytes.'''
@@ -301,7 +291,7 @@ cdef class NetfilterQueue:
         nfq_unbind_pf(self.h, self.af)
 
         if nfq_bind_pf(self.h, self.af) < 0:
-            raise OSError('Failed to bind family %s. Are you root?' % self.af)
+            raise OSError(f'Failed to bind family {self.af}. Are you root?')
 
     def __dealloc__(self):
         if self.qh != NULL:
@@ -325,13 +315,13 @@ cdef class NetfilterQueue:
             range = MaxCopySize
 
         if nfq_set_mode(self.qh, mode, range) < 0:
-            raise OSError("Failed to set packet copy mode.")
+            raise OSError('Failed to set packet copy mode.')
 
         nfq_set_queue_maxlen(self.qh, max_len)
 
         newsiz = nfnl_rcvbufsiz(nfq_nfnlh(self.h), sock_len)
         if newsiz != sock_len * 2:
-            raise RuntimeWarning("Socket rcvbuf limit is now %d, requested %d." % (newsiz, sock_len))
+            raise RuntimeWarning(f'Socket rcvbuf limit is now {newsiz}, requested {sock_len}.')
 
     def unbind(self):
         '''Destroy the queue.'''
@@ -342,15 +332,10 @@ cdef class NetfilterQueue:
         self.qh = NULL
         # See warning about nfq _unbind_pf in __dealloc__ above.
 
-    def get_fd(self):
-        '''Get the file descriptor of the queue handler.'''
-
-        return nfq_fd(self.h)
-
     def run(self, bint block=True):
         '''Accept packets using recv.'''
 
-        cdef int fd = self.get_fd()
+        cdef int fd = nfq_fd(self.h)
         cdef char buf[4096]
         cdef int rv
         cdef int recv_flags = 0
