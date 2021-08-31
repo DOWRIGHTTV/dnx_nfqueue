@@ -68,7 +68,7 @@ cdef class CPacket:
         self._parse()
 
         # returning mark for more direct access
-        return mark
+        return self._mark
 
     cdef void _parse(self) nogil:
 
@@ -96,9 +96,9 @@ cdef class CPacket:
 
             protohdr_len = 4
 
-        self.cmbhdr_len = protohdr_len + 20
+        self._cmbhdr_len = protohdr_len + 20
 
-        self.payload = &self.data[self.cmbhdr_len]
+        self.payload = &self.data[self._cmbhdr_len]
 
     cdef void verdict(self, u_int32_t verdict):
         '''Call appropriate set_verdict function on packet.'''
@@ -108,12 +108,12 @@ cdef class CPacket:
 
         if self._mark:
             nfq_set_verdict2(
-                self._qh, self._id, verdict, self._mark, self.data_len, self.data
+                self._qh, self._id, verdict, self._mark, self._data_len, self.data
             )
 
         else:
             nfq_set_verdict(
-                self._qh, self._id, verdict, self.data_len, self.data
+                self._qh, self._id, verdict, self._data_len, self.data
             )
 
         self._verdict = True
@@ -197,7 +197,7 @@ cdef class CPacket:
     def get_raw_packet(self):
         '''Return layer 3-7 of packet data.'''
 
-        return self.data[:self.data_len]
+        return self.data[:<Py_ssize_t>self._data_len]
 
     def get_ip_header(self):
         '''Return layer3 of packet data as a tuple converted directly from C struct.'''
@@ -269,7 +269,7 @@ cdef class CPacket:
     def get_payload(self):
         '''Return payload (>layer4) as Python bytes.'''
 
-        cdef Py_ssize_t payload_len = self.data_len - self.cmbhdr_len
+        cdef Py_ssize_t payload_len = self._data_len - self._cmbhdr_len
 
         return self.payload[:payload_len]
 
